@@ -1,5 +1,5 @@
 import React, { ReactElement } from 'react';
-import { differenceInDays, startOfToday, subDays, subYears } from 'date-fns';
+import { differenceInDays, startOfToday, subDays, subYears, addDays } from 'date-fns';
 
 export interface IActivityMap {
   width?: number | string;
@@ -30,8 +30,8 @@ const MONTHS_OF_YEAR = [
   'nov',
   'dec',
 ];
-const numDaysPerWeek = DAYS_OF_WEEK.length;
-const numMonthsInYear = MONTHS_OF_YEAR.length;
+const daysInWeek = DAYS_OF_WEEK.length;
+const monthsInYear = MONTHS_OF_YEAR.length;
 
 const ActivityMap = ({
   width,
@@ -45,16 +45,16 @@ const ActivityMap = ({
   const cellSizeWithGutter = cellSize + gutterSize;
   const numOfDays = differenceInDays(endDate, startDate);
   const emptyDaysAtStart = startDate.getDay();
-  const emptyDaysAtEnd = numDaysPerWeek - (endDate.getDay() + 1);
+  const emptyDaysAtEnd = daysInWeek - (endDate.getDay() + 1);
+  const numOfWeeks = Math.ceil((emptyDaysAtStart + numOfDays + emptyDaysAtEnd) / daysInWeek);
   const lastCellIndex = emptyDaysAtStart + numOfDays;
-  const numOfWeeks = Math.ceil((emptyDaysAtStart + numOfDays + emptyDaysAtEnd) / numDaysPerWeek);
+  const dateOfFirstCell = subDays(startDate, emptyDaysAtStart);
 
   return (
     <svg
       width={width || cellSizeWithGutter * numOfWeeks + 40}
-      height="auto"
       viewBox={`0 0 ${cellSizeWithGutter * numOfWeeks + 40} ${
-        cellSizeWithGutter * numDaysPerWeek + 40
+        cellSizeWithGutter * daysInWeek + 40
       }`}
     >
       <g transform={`translate(0, 40)`}>
@@ -65,17 +65,21 @@ const ActivityMap = ({
         ))}
       </g>
       <g transform="translate(40, 0)">
-        {MONTHS_OF_YEAR.map((month, monthIndex) => (
-          <text key={monthIndex} x={monthIndex * 40} y={20}>
-            {month}
-          </text>
-        ))}
+        {Array.from(new Array(numOfWeeks), (_, i) => i).map((weekIndex) => {
+          const firstDateOfWeek = addDays(dateOfFirstCell, weekIndex * daysInWeek);
+          return firstDateOfWeek.getDate() >= daysInWeek &&
+            firstDateOfWeek.getDate() < 2 * daysInWeek ? (
+            <text key={firstDateOfWeek.getMilliseconds()} x={weekIndex * cellSizeWithGutter} y={20}>
+              {MONTHS_OF_YEAR[firstDateOfWeek.getMonth()]}
+            </text>
+          ) : null;
+        })}
       </g>
       <g transform="translate(40, 40)">
         {Array.from(new Array(numOfWeeks), (_, i) => i).map((weekIndex) => (
           <g key={weekIndex} transform={`translate(${cellSizeWithGutter * weekIndex}, 0)`}>
-            {Array.from(new Array(numDaysPerWeek), (_, i) => i).map((dayIndex) => {
-              const cellIndex = weekIndex * numDaysPerWeek + dayIndex;
+            {Array.from(new Array(daysInWeek), (_, i) => i).map((dayIndex) => {
+              const cellIndex = weekIndex * daysInWeek + dayIndex;
 
               if (cellIndex < emptyDaysAtStart || cellIndex > lastCellIndex) return null;
 
