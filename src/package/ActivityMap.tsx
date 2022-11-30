@@ -1,6 +1,7 @@
-import React, { ReactElement, useMemo } from 'react';
-import Color from 'color';
-import { differenceInDays, startOfToday, subDays, subYears, addDays } from 'date-fns';
+import React, { CSSProperties, ReactElement, useMemo } from 'react';
+import { differenceInDays, startOfToday, subDays, subYears, addDays, daysInWeek } from 'date-fns';
+import { getArray, getColorValues, getIntensity, getIntensityGroups } from '../utils';
+import { DAYS_OF_WEEK, MONTHS_OF_YEAR } from '../CONSTANTS';
 
 export interface IActivityMap {
   width?: number | string;
@@ -13,54 +14,18 @@ export interface IActivityMap {
   baseColor?: string;
   weekLabelPattern?: string | string[];
   intensityVariance?: number;
-  values: Array<{ count: number; date: string }>; // TODO: describe properly
+  values: Array<{ count: number; date: string }>;
+  colors?: string[];
   // May add more properties later
 }
 
-const DAYS_OF_WEEK = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-const MONTHS_OF_YEAR = [
-  'jan',
-  'feb',
-  'mar',
-  'apr',
-  'may',
-  'jun',
-  'jul',
-  'aug',
-  'sep',
-  'oct',
-  'nov',
-  'dec',
-];
-const daysInWeek = DAYS_OF_WEEK.length;
-const monthsInYear = MONTHS_OF_YEAR.length;
-
-export const getIntensityGroups = (intensityVariance: number, data: number[]): number[] => {
-  const uniqueValues = Array.from(new Set(data)).sort((a, b) => a - b);
-  const uniqueLength = uniqueValues.length;
-  if (uniqueLength < intensityVariance)
-    return [...new Array(intensityVariance - uniqueLength - 1).fill(0), ...uniqueValues];
-  const intensityRange = ~~(uniqueLength / (intensityVariance - 2));
-  return Array.from(
-    new Array(intensityVariance - 1),
-    (_, i) => uniqueValues[Math.min(intensityRange * i, uniqueLength - 1)]
-  );
-};
-
-const getIntensity = (
-  count: number,
-  baseColor: string,
-  intensityVariance: number,
-  intensitySteps: number[]
-) => {
-  const color = Color(baseColor);
-
-  if (count === 0) return color.lighten((intensityVariance + 1) / intensityVariance).hex();
-
-  // if (count >= Math.max(...intensitySteps)) return color.hex(); // TODO: highest intensity
-
-  const index = intensitySteps.findIndex((step) => count <= step) + 1;
-  return color.lighten((intensityVariance - index - 1) / intensityVariance).hex();
+const labelStyle: CSSProperties = {
+  fontSize: '12',
+  lineHeight: '18',
+  fontFamily:
+    'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
+  textTransform: 'uppercase',
+  fill: '#4a4a4a',
 };
 
 const ActivityMap = ({
@@ -73,6 +38,7 @@ const ActivityMap = ({
   baseColor = '#666666',
   values = [],
   intensityVariance = 4,
+  colors = getColorValues(baseColor, intensityVariance),
 }: IActivityMap): ReactElement => {
   const cellSizeWithGutter = cellSize + gutterSize;
   const numOfDays = differenceInDays(endDate, startDate);
@@ -106,8 +72,6 @@ const ActivityMap = ({
     [values, baseColor, intensityVariance]
   );
 
-  console.log(Color(baseColor).isLight());
-
   return (
     <svg
       width={width || cellSizeWithGutter * numOfWeeks + 40}
@@ -117,26 +81,36 @@ const ActivityMap = ({
     >
       <g transform={`translate(0, 40)`}>
         {DAYS_OF_WEEK.map((day, dayIndex) => (
-          <text key={dayIndex} x={0} y={(dayIndex + 1) * cellSize + dayIndex * gutterSize}>
-            {day}
+          <text
+            key={dayIndex}
+            x={0}
+            y={(dayIndex + 1) * cellSize + dayIndex * gutterSize}
+            style={labelStyle}
+          >
+            {day.substring(0, 3)}
           </text>
         ))}
       </g>
       <g transform="translate(40, 0)">
-        {Array.from(new Array(numOfWeeks), (_, i) => i).map((weekIndex) => {
+        {getArray(numOfWeeks).map((weekIndex) => {
           const firstDateOfWeek = addDays(dateOfFirstCell, weekIndex * daysInWeek);
           return firstDateOfWeek.getDate() >= daysInWeek &&
             firstDateOfWeek.getDate() < 2 * daysInWeek ? (
-            <text key={firstDateOfWeek.getMilliseconds()} x={weekIndex * cellSizeWithGutter} y={20}>
-              {MONTHS_OF_YEAR[firstDateOfWeek.getMonth()]}
+            <text
+              key={firstDateOfWeek.getMilliseconds()}
+              x={weekIndex * cellSizeWithGutter}
+              y={20}
+              style={labelStyle}
+            >
+              {MONTHS_OF_YEAR[firstDateOfWeek.getMonth()].substring(0, 3)}
             </text>
           ) : null;
         })}
       </g>
       <g transform="translate(40, 40)">
-        {Array.from(new Array(numOfWeeks), (_, i) => i).map((weekIndex) => (
+        {getArray(numOfWeeks).map((weekIndex) => (
           <g key={weekIndex} transform={`translate(${cellSizeWithGutter * weekIndex}, 0)`}>
-            {Array.from(new Array(daysInWeek), (_, i) => i).map((dayIndex) => {
+            {getArray(daysInWeek).map((dayIndex) => {
               const cellIndex = weekIndex * daysInWeek + dayIndex;
 
               if (cellIndex < emptyDaysAtStart || cellIndex > lastCellIndex) return null;
@@ -150,7 +124,7 @@ const ActivityMap = ({
                   width={cellSize}
                   height={cellSize}
                   rx={cellRadius}
-                  fill={cellValues[cellIndex]?.intensity || Color(baseColor).lighten(0.75).hex()}
+                  fill={cellValues[cellIndex]?.intensity || colors.at(-1)}
                 />
               );
             })}
@@ -158,23 +132,21 @@ const ActivityMap = ({
         ))}
       </g>
       <g transform={`translate(40, ${cellSizeWithGutter * daysInWeek + 50})`}>
-        <text x={0} y={cellSize}>
+        <text x={0} y={cellSize} style={labelStyle}>
           More
         </text>
-        {Array.from(new Array(intensityVariance), (_, i) => i).map((variance) => (
+        {colors.map((color, index) => (
           <rect
-            key={variance}
-            x={variance * cellSizeWithGutter + 40}
+            key={index}
+            x={index * cellSizeWithGutter + 40}
             y={0}
             width={cellSize}
             height={cellSize}
             rx={cellRadius}
-            fill={Color(baseColor)
-              .lighten(variance / intensityVariance)
-              .hex()}
+            fill={color}
           />
         ))}
-        <text x={intensityVariance * cellSizeWithGutter + 40} y={cellSize}>
+        <text x={intensityVariance * cellSizeWithGutter + 40} y={cellSize} style={labelStyle}>
           Less
         </text>
       </g>
